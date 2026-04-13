@@ -2,7 +2,7 @@ import streamlit as st
 from planner_core import get_route_data, create_map, generate_plan_description, wgs84_to_gcj02
 
 st.set_page_config(page_title="徒步路线规划-AI助手", layout="wide")
-st.title("🥾 徒步路线规划-我的AI助手")
+st.title("🥾 徒步路线规划-Hiking Agent")
 st.markdown("输入起点和终点，我将为你规划徒步路线并生成互动地图。")
 
 col1, col2 = st.columns(2)
