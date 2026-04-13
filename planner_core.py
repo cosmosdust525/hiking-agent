@@ -1,16 +1,29 @@
+import json
+import sys
+import io
 import os
 import folium
 import osmnx as ox
 import requests
 import math
 from langchain_community.llms import Ollama
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
+
+# 强制标准输出使用 UTF-8
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # ========== 高德API配置 ==========
 AMAP_KEY = os.getenv("AMAP_KEY", "")
 
+# ========== DeepSeek API 配置 ==========
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
-# ========== 初始化 LLM ==========
-llm = Ollama(model="deepseek-r1:8b", temperature=0.3)
+## ========== 初始化 LLM ==========
+# llm = Ollama(model="deepseek-r1:8b", temperature=0.3)
 
 # ========== 地点坐标缓存（放在这里！） ==========
 CACHE = {
@@ -229,16 +242,122 @@ def create_map(route_coords, start_point, end_point, output_file="hiking_route.h
     print(f"✅ 地图已保存到 {output_file}")
     return output_file
 
-def generate_plan_description(start, end, dist_km, elev_m):
-    """调用 LLM 生成自然语言计划"""
-    prompt = f"""
-你是一名专业户外向导。请根据以下路线数据，生成一段简洁、友好的徒步计划（200字以内）：
-起点：{start}
-终点：{end}
-总距离：{dist_km:.1f} 公里
-累计爬升：{elev_m} 米
 
-请包含：预计时间（按3km/h + 每100米爬升10分钟计算）、难度评估（简单/中等/困难）、安全提示。
+def call_deepseek(prompt: str, temperature: float = 0.3) -> str:
+    """
+    调用 DeepSeek API 生成内容
+    """
+    if not DEEPSEEK_API_KEY:
+        return "⚠️ 未配置 DeepSeek API Key，请检查环境变量。"
+    
+    # 🔧 关键：确保 prompt 是字符串且正确编码
+    if not isinstance(prompt, str):
+        prompt = str(prompt)
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+    }
+    
+    # 🔧 关键：使用 ensure_ascii=False 保留中文字符
+    data = {
+        "model": "deepseek-chat",  # 使用 chat 模型，更稳定
+        "messages": [
+            {"role": "system", "content": "你是一名专业的户外徒步向导，擅长规划徒步路线并给出安全建议。"},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": temperature,
+        "max_tokens": 1000
+    }
+    
+    try:
+        # 🔧 关键：手动序列化 JSON，保留中文字符
+        json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        
+        response = requests.post(
+            DEEPSEEK_API_URL,
+            headers=headers,
+            data=json_data,  # 使用 data 而不是 json
+            timeout=30
+        )
+        
+        response.encoding = 'utf-8'
+        
+        if response.status_code == 200:
+            result = response.json()
+            content = result['choices'][0]['message']['content']
+            return content.strip()
+        else:
+            error_msg = f"API 调用失败: {response.status_code}"
+            try:
+                error_data = response.json()
+                if 'error' in error_data:
+                    error_msg += f" - {error_data['error'].get('message', '')}"
+            except:
+                pass
+            return f"⚠️ {error_msg}"
+            
+    except requests.exceptions.Timeout:
+        return "⚠️ 请求超时，请稍后重试"
+    except requests.exceptions.ConnectionError:
+        return "⚠️ 网络连接失败，请检查网络"
+    except Exception as e:
+        return f"⚠️ 请求异常: {str(e)}"
+
+def generate_plan_description(start, end, dist_km, elev_m):
+    """使用 DeepSeek API 生成自然语言计划"""
+    
+    # 计算预计时间
+    estimated_hours = dist_km / 3 + elev_m / 1000 * 10
+    # 难度评估
+    if elev_m < 100:
+        difficulty = "简单"
+    elif elev_m < 300:
+        difficulty = "中等"
+    else:
+        difficulty = "困难"
+    
+    # 🔧 关键：确保所有字符串都是英文或数字，避免编码问题
+    # 将中文 prompt 转换为英文（临时方案）
+    prompt = f"""
+Please provide a concise and friendly hiking plan (200-300 words) based on the following route data:
+
+[Route Information]
+Start: {start}
+End: {end}
+Total distance: {dist_km:.1f} km
+Cumulative elevation gain: {elev_m} m
+Estimated time: {estimated_hours:.1f} hours
+Difficulty level: {difficulty}
+
+[Requirements]
+1. Describe the characteristics of the route (scenery, trail conditions, etc.)
+2. Provide specific hiking time recommendations
+3. Offer safety tips (gear, water, weather, etc.)
+4. Use a friendly and professional tone suitable for outdoor enthusiasts.
+
+Please respond in Chinese (中文).
 """
-    response = llm.invoke(prompt)
-    return response.strip()
+    
+    result = call_deepseek(prompt)
+    
+    
+    return result
+
+
+
+
+
+#def generate_plan_description(start, end, dist_km, elev_m):
+ #   """调用 LLM 生成自然语言计划"""
+  #  prompt = f"""
+#你是一名专业户外向导。请根据以下路线数据，生成一段简洁、友好的徒步计划（200字以内）：
+#起点：{start}
+#终点：{end}
+#总距离：{dist_km:.1f} 公里
+#累计爬升：{elev_m} 米
+
+#请包含：预计时间（按3km/h + 每100米爬升10分钟计算）、难度评估（简单/中等/困难）、安全提示。
+#"""
+ #   response = llm.invoke(prompt)
+  #  return response.strip()

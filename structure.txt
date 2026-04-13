@@ -1,5 +1,5 @@
 hiking_agent/
-├── .env                     # (可选) 存放环境变量
+├── hiking_env                     # (可选) 存放环境变量
 ├── requirements.txt         # 所有依赖
 ├── planner_core.py          # 核心规划函数（复用之前的逻辑）
 ├── streamlit_app.py         # Streamlit 界面

@@ -2,6 +2,7 @@ streamlit
 osmnx
 folium
 haversine
+numpy
 langchain-community
 crewai
 python-dotenv
