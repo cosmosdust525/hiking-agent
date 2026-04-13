@@ -1,0 +1,7 @@
+streamlit
+osmnx
+folium
+haversine
+langchain-community
+crewai
+python-dotenv
