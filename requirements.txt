@@ -6,3 +6,4 @@ numpy
 langchain-community
 crewai
 python-dotenv
+scikit-learn  # <--- 添加这一行
