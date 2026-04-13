@@ -8,6 +8,7 @@ import requests
 import math
 from langchain_community.llms import Ollama
 from dotenv import load_dotenv
+import streamlit as st
 
 # 加载环境变量
 load_dotenv()
@@ -19,7 +20,19 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 AMAP_KEY = os.getenv("AMAP_KEY", "")
 
 # ========== DeepSeek API 配置 ==========
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+# 优先级：st.secrets（云端） > .env（本地开发）
+try:
+    # 尝试从 st.secrets 读取（Streamlit Cloud 部署时）
+    DEEPSEEK_API_KEY = st.secrets.get("DEEPSEEK_API_KEY", "")
+    if DEEPSEEK_API_KEY:
+        print("✅ 使用 st.secrets 中的 API Key")
+except (FileNotFoundError, KeyError, AttributeError):
+    # 本地开发时使用 .env
+    from dotenv import load_dotenv
+    load_dotenv()
+    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+    if DEEPSEEK_API_KEY:
+        print("✅ 使用 .env 中的 API Key")
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 ## ========== 初始化 LLM ==========

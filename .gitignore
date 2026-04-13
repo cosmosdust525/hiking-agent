@@ -11,6 +11,7 @@ __pycache__/
 # 本地配置文件
 .env
 *.local
+.streamlit/secrets.toml
 
 # 生成的地图文件
 *.html
